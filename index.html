@@ -1,0 +1,162 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+            integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        >
+        <link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+        <link rel="stylesheet" href="./style.css">
+        <title>TeraBox Direct Link Generator</title>
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-N7D33DPJ8Q"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+
+          gtag('config', 'G-N7D33DPJ8Q');
+        </script>
+    </head>
+    <body>
+        <div class="container">
+            <h1>GET LINK TERABOX</h1>
+            <div class="form-group">
+                <label for="input-url">Enter URL:</label>
+                <input type="text" id="input-url" placeholder="https://terabox.com/s/117NfiRSK_e4ImEEDqQGh_g">
+                <input type="text" id="input-password" placeholder="Password (Option)">
+            </div>
+            <div class="form-group">
+                <button id="get-link-button">Get Link</button>
+            </div>
+            <div class="output" style="display: none;">
+                <div class="tree-view"></div>
+            </div>
+        </div>
+
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"
+            integrity="sha512-fD9DI5bZwQxOi7MhYWnnNPlvXdp/2Pj3XSTRrFs5FQa4mizyGLnJcN6tuvUS6LbmgN1ut+XGSABKvjN0H6Aoow=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script src="./script.js"></script>
+        <script>
+            function fetchDownload({ shareid, uk, sign, timestamp, fs_id }) {
+                return fetch("/api/get-download", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ shareid, uk, sign, timestamp, fs_id }),
+                }).then(async function (res) {
+                    return await res.json()
+                })
+            }
+            
+            function fetchDownloadP({ shareid, uk, sign, timestamp, fs_id }) {
+                return fetch("/api/get-downloadp", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ shareid, uk, sign, timestamp, fs_id }),
+                }).then(async (res) => await res.json())
+            }
+
+            function fetchInfo(shortUrl, pwd = ''){
+                return fetch(`/api/get-info?shorturl=${shortUrl}&pwd=${pwd}`).then(async function (res) {
+                        const body = await res.json()
+
+                        if (!body.ok) return alert(body.message)
+
+                        // handle Info
+                        function recursiveList(list) {
+                            return list.map((item) => ({
+                                isDir: item.is_dir != 0,
+                                name: item.filename,
+                                category: item.is_dir != 0 || parseInt(item.category),
+                                size: item.is_dir != 0 || formatStorageSize(parseInt(item.size)),
+                                children:
+                                    item.children && item.children.length > 0
+                                        ? recursiveList(item.children)
+                                        : undefined,
+                                downloadAction:
+                                    item.is_dir != 0 ||
+                                    async function () {
+                                        const res = await fetchDownload({
+                                            shareid: body.shareid,
+                                            uk: body.uk,
+                                            sign: body.sign,
+                                            timestamp: body.timestamp,
+                                            fs_id: item.fs_id,
+                                        })
+
+                                        if (!res.ok) return alert(res.message)
+
+                                        return res.downloadLink
+                                    },
+                                downloadActionP:
+                                    item.is_dir != 0 ||
+                                    async function() {
+                                        const res = await fetchDownloadP({
+                                        shareid: body.shareid,
+                                        uk: body.uk,
+                                        sign: body.sign,
+                                        timestamp: body.timestamp,
+                                        fs_id: item.fs_id,
+                                    });
+                                    if (!res.ok) return alert(res.message)
+                                    return res.downloadLink
+                                },
+                            }))
+                        }
+
+                        return recursiveList(body.list)
+                    })
+
+            }
+
+            const getLinkButton = document.getElementById("get-link-button")
+            const inputUrl = document.getElementById("input-url")
+            const inputPassword = document.getElementById("input-password")
+            const outputElement = document.querySelector(".output")
+            const treeViewElement = document.querySelector(".tree-view")
+            const placeholders = ['https://terabox.com/s/117NfiRSK_e4ImEEDqQGh_g', 'https://www.terabox.com/sharing/link?surl=17NfiRSK_e4ImEEDqQGh_g', 'Enter your TeraBox URL Here'];
+            let ips = 0;
+            setInterval(() => {
+                inputUrl.setAttribute('placeholder', placeholders[ips]);
+                ips = (ips + 1) % placeholders.length;
+            }, 2000);
+
+            getLinkButton.addEventListener("click", async function () {
+                const url = inputUrl.value
+                const pwd = inputPassword.value
+
+                if(!url) return alert('URL must not be empty!')
+
+                const regex = /(?:surl=|\/)([a-zA-Z0-9-_]+)$/
+                const match = url.match(regex)
+                if (match) {
+                    const shortUrl = match[1]
+
+                    treeViewElement.innerHTML = '<p style="text-align:center;"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</p>'
+                    getLinkButton.disabled = true
+                    outputElement.style.display = 'block'
+                    
+                    const d = await fetchInfo(shortUrl, pwd)
+                    
+                    getLinkButton.disabled = false
+                    treeViewElement.innerHTML = ''
+                    
+                    TreeView(d, treeViewElement)
+                } else {
+                    alert("Unsupported URL")
+                    getLinkButton.disabled = false
+                }
+            })
+        </script>
+    </body>
+</html>
